@@ -7,4 +7,4 @@
 
 ## Demo
 
-[Local Demo](./tests/demo.html)
+[https://mjbrisebois.github.io/wc-select-search/docs/](https://mjbrisebois.github.io/wc-select-search/docs/)
