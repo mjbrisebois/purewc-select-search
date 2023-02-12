@@ -1,7 +1,83 @@
 
-const template			= document.createElement("template");
-template.innerHTML = `
-<style>
+class BaseElement extends HTMLElement {
+    constructor () {
+	super();
+
+	const observer			= new MutationObserver( () => {
+	    this.mutationCallback && this.mutationCallback();
+	});
+	observer.observe( this, {
+	    "characterData": false,
+	    "childList": true,
+	    "attributes": false,
+	});
+
+	if ( this.constructor.template === undefined )
+	    throw new Error(`Missing template for ${this.constructor.name}`);
+
+	let template			 	= this.constructor.template;
+	this.constructor.$template		= document.createElement("template");
+
+	if ( this.constructor.CSS )
+	    template				= `<style>\n${this.constructor.CSS}\n</style>` + template;
+
+	this.constructor.$template.innerHTML	= template;
+
+	this.attachShadow({ mode: "open" });
+	this.shadowRoot.appendChild(
+	    this.constructor.$template.content.cloneNode(true)
+	);
+
+
+	const $this				= this;
+	const __props_store			= {};
+	Object.defineProperty( this, "__props", {
+	    "value": {},
+	});
+
+	Object.entries( this.constructor.refs ).forEach( ([key, selector]) => {
+	    Object.defineProperty( this, key, {
+		get () {
+		    return this.shadowRoot.querySelector( selector );
+		},
+		// set ( value ) {
+		// },
+	    });
+	});
+
+	this.constructor.observedAttributes.push( ...Object.keys( this.constructor.properties ) );
+
+	Object.entries( this.constructor.properties ).forEach( ([key, config]) => {
+	    Object.defineProperty( this.__props, key, {
+		get () {
+		    return __props_store[ key ] || config.default;
+		},
+		set ( value ) {
+		    __props_store[ key ]	= value;
+
+		    if ( config.updated ) {
+			config.updated.call( $this );
+		    }
+		},
+	    });
+
+	    Object.defineProperty( this, key, {
+		get () {
+		    return this.__props[ key ];
+		},
+		set ( value ) {
+		    this.__props[ key ]		= value;
+
+		    if ( config.reflect !== false )
+			this.setAttribute( key, value );
+		},
+	    });
+	});
+    }
+}
+
+class SelectSearchElement extends BaseElement {
+    static CSS				= `
 :host {
   display: inline-block;
   position: relative;
@@ -98,8 +174,9 @@ input {
 .dropdown div:hover {
   background-color: #eee;
 }
-</style>
+`;
 
+    static template			= `
 <div id="display">
     <span></span>
     <input name="search">
@@ -111,7 +188,9 @@ input {
 </div>
 `;
 
-class SelectSearchElement extends HTMLElement {
+
+    // Element constants
+
     static observedAttributes		= [
 	"options",
 	"value",
@@ -119,14 +198,85 @@ class SelectSearchElement extends HTMLElement {
 	"search",
 	"searching",
     ];
+    static properties			= {
+	"value": {
+	    "default": "",
+	    updated () {
+		const change = new Event('change');
+		this.dispatchEvent( change );
 
-    // Element constants
+		const input = new InputEvent('input');
+		this.dispatchEvent( input );
 
-    __props				= {
-	"value": "",
-	"search": "",
-	"searching": false,
+		this.$selected.innerHTML	= this.name;
+
+		const index			= this.options.indexOf( this.value );
+		const $el			= this.optionElements[ index ];
+
+		if ( this.$active )
+		    this.$active.classList.remove("active");
+
+		if ( $el )
+		    $el.classList.add("active");
+	    },
+	},
+	"search": {
+	    "default": "",
+	    updated () {
+		const search			= this.search.trim().toLowerCase();
+		this.$input.setAttribute( "value", search );
+
+		this.visibleOptions.splice( 0, this.visibleOptions.length );
+
+		this.options.forEach( (value, index) => {
+		    const name			= this.optionNames[index].toLowerCase();
+		    if ( value.toLowerCase().includes( search ) || name.includes( search ) ) {
+			this.visibleOptions.push( index );
+			this.optionElements[ index ].classList.remove("hide");
+		    }
+		    else
+			this.optionElements[ index ].classList.add("hide");
+		});
+	    },
+	},
+	"searching": {
+	    "default": false,
+	    "reflect": false,
+	    updated () {
+		if ( this.searching ) {
+		    this.$display.classList.add("searching");
+		    this.$options.classList.add("searching");
+
+		    this.$input.select();
+		} else {
+		    this.$display.classList.remove("searching");
+		    this.$options.classList.remove("searching");
+		}
+	    },
+	},
+
+	// "options",
+	"placeholder": {
+	    "default": "",
+	    updated () {
+		if ( this.placeholder === null || this.placeholder === undefined )
+		    this.$input.removeAttribute("placeholder");
+		else
+		    this.$input.setAttribute("placeholder", this.placeholder );
+	    },
+	},
     };
+
+    static refs				= {
+	"$input":		"input",
+	"$display":		"#display",
+	"$selected":		"#display span",
+
+	"$options":		"#options",
+	"$active":		"#options .active",
+	"$dropdown":		"#options .dropdown",
+    };
+
     options				= [];
     optionNames				= [];
     visibleOptions			= [];
@@ -137,37 +287,17 @@ class SelectSearchElement extends HTMLElement {
 
 	this.addEventListener("click", event => this.$input.focus() );
 
-	this.attachShadow({ mode: "open" });
-	this.shadowRoot.appendChild(
-	    template.content.cloneNode(true)
-	);
-
-	this.$options			= this.shadowRoot.querySelector("#options");
-	this.$display			= this.shadowRoot.querySelector("#display");
-
-	this.$input			= this.shadowRoot.querySelector("input");
-
-	this.$selected			= this.shadowRoot.querySelector("#display span");
-	this.$dropdown			= this.shadowRoot.querySelector("#options .dropdown");
-
-
-	this.$input.onblur		= this.inputBlur.bind(this);
-	this.$input.onfocus		= this.inputFocus.bind(this);
-        this.$input.onkeyup		= this.inputKeyUpHandler.bind(this);
+	this.$input.addEventListener("blur", this.inputBlur.bind(this) );
+	this.$input.addEventListener("focus", this.inputFocus.bind(this) );
+	this.$input.addEventListener("keyup", this.inputKeyUpHandler.bind(this) );
     }
 
     connectedCallback() {
-	const $this			= this;
-	const observer			= new MutationObserver(function(mutationsList, observer) {
-	    $this.parseOptions();
-	});
-	observer.observe( this, {
-	    "characterData": false,
-	    "childList": true,
-	    "attributes": false,
-	});
+	this.parseOptions();
+    }
 
-	$this.parseOptions();
+    mutationCallback() {
+	this.parseOptions();
     }
 
     attributeChangedCallback( name, oldValue, newValue ) {
@@ -183,89 +313,11 @@ class SelectSearchElement extends HTMLElement {
 
     // Property/attribute controllers
 
-    get $active () {
-	return this.shadowRoot.querySelector("#options .active");
-    }
-
     get name () {
 	const index			= this.options.indexOf( this.value );
 	return index >= 0
 	    ? this.optionNames[ index ]
 	    : this.value;
-    }
-
-    set value ( text ) {
-	const value			= text.trim();
-
-	this.__props.value		= value;
-
-	this.setAttribute( "value", value );
-
-	this.$selected.innerHTML	= this.name;
-
-	const index			= this.options.indexOf( this.value );
-	const $el			= this.optionElements[ index ];
-
-	this.$active.classList.remove("active");
-	$el.classList.add("active");
-    }
-    get value () {
-	return this.__props.value || "";
-    }
-
-    set search ( value ) {
-	if ( typeof value !== "string" )
-	    throw new TypeError(`search value must be a string; not type of '${typeof value}'`);
-
-	const search			= value.trim().toLowerCase();
-	this.$input.setAttribute( "value", search );
-	this.setAttribute("search", search );
-
-	this.visibleOptions.splice( 0, this.visibleOptions.length );
-
-	this.options.forEach( (value, index) => {
-	    const name			= this.optionNames[index].toLowerCase();
-	    if ( value.toLowerCase().includes( search ) || name.includes( search ) ) {
-		this.visibleOptions.push( index );
-		this.optionElements[ index ].classList.remove("hide");
-	    }
-	    else
-		this.optionElements[ index ].classList.add("hide");
-	});
-    }
-    get search () {
-	return this.__props.search;
-    }
-
-    set searching ( value ) {
-	this.__props.searching		= !!value;
-
-	if ( this.searching ) {
-	    this.$display.classList.add("searching");
-	    this.$options.classList.add("searching");
-
-	    this.$input.select();
-	} else {
-	    this.$display.classList.remove("searching");
-	    this.$options.classList.remove("searching");
-	}
-    }
-    get searching () {
-	return this.__props.searching;
-    }
-
-    set placeholder ( text ) {
-	this.__props.placeholder	= text;
-
-	if ( text === null || text === undefined ) {
-	    this.$input.removeAttribute("placeholder");
-	}
-	else {
-	    this.$input.setAttribute("placeholder", text );
-	}
-    }
-    get placeholder () {
-	return this.__props.placeholder;
     }
 
 
@@ -293,9 +345,9 @@ class SelectSearchElement extends HTMLElement {
 		    this.$selected.innerHTML	= text;
 		}
 
-		$option.onmousedown	= event => {
+		$option.addEventListener("mousedown", event => {
 		    this.clickOption.call( this, event, value );
-		};
+		});
 
 		this.optionElements.push( $option );
 		this.$dropdown.appendChild( $option );
