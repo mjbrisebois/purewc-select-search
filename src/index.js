@@ -281,6 +281,7 @@ input {
     optionNames				= [];
     visibleOptions			= [];
     optionElements			= [];
+    __parsed				= false;
 
     constructor () {
 	super();
@@ -324,6 +325,9 @@ input {
     // Methods
 
     parseOptions () {
+	if ( this.__parsed === true )
+	    return;
+
 	this.options.splice( 0, this.options.length );
 	this.optionNames.splice( 0, this.optionNames.length );
 
@@ -353,6 +357,9 @@ input {
 		this.$dropdown.appendChild( $option );
 	    }
 	}
+
+	if ( this.options.length > 0 )
+	    this.__parsed		= true;
     }
 
     updateValue ( value ) {
