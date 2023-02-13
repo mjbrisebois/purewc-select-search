@@ -38,10 +38,11 @@ class BaseElement extends HTMLElement {
 	Object.entries( this.constructor.refs ).forEach( ([key, selector]) => {
 	    Object.defineProperty( this, key, {
 		get () {
-		    return this.shadowRoot.querySelector( selector );
+		    if ( key.startsWith("$") )
+			return this.shadowRoot.querySelector( selector );
+		    else
+			return this.shadowRoot.querySelectorAll( selector );
 		},
-		// set ( value ) {
-		// },
 	    });
 	});
 
@@ -208,7 +209,7 @@ input {
 		const input = new InputEvent('input');
 		this.dispatchEvent( input );
 
-		this.$selected.innerHTML	= this.name;
+		this.$selected.innerText	= this.name;
 
 		const index			= this.options.indexOf( this.value );
 		const $el			= this.optionElements[ index ];
@@ -226,16 +227,14 @@ input {
 		const search			= this.search.trim().toLowerCase();
 		this.$input.setAttribute( "value", search );
 
-		this.visibleOptions.splice( 0, this.visibleOptions.length );
+		this.optionElements.forEach( ($option) => {
+		    const value			= $option.getAttribute("value").toLowerCase();
+		    const name			= $option.innerText.toLowerCase();
 
-		this.options.forEach( (value, index) => {
-		    const name			= this.optionNames[index].toLowerCase();
-		    if ( value.toLowerCase().includes( search ) || name.includes( search ) ) {
-			this.visibleOptions.push( index );
-			this.optionElements[ index ].classList.remove("hide");
-		    }
+		    if ( value.includes( search ) || name.includes( search ) )
+			$option.classList.remove("hide");
 		    else
-			this.optionElements[ index ].classList.add("hide");
+			$option.classList.add("hide");
 		});
 	    },
 	},
@@ -268,20 +267,25 @@ input {
     };
 
     static refs				= {
-	"$input":		"input",
-	"$display":		"#display",
-	"$selected":		"#display span",
+	"$input":		`input`,
+	"$display":		`#display`,
+	"$selected":		`#display span`,
 
-	"$options":		"#options",
-	"$active":		"#options .active",
-	"$dropdown":		"#options .dropdown",
+	"$options":		`#options`,
+	"$active":		`#options .active`,
+	"$default":		`#options div[value=""]`,
+	"$dropdown":		`#options .dropdown`,
+
+	"optionsList":		`#options div[value]`,
     };
 
-    options				= [];
+
     optionNames				= [];
-    visibleOptions			= [];
     optionElements			= [];
-    __parsed				= false;
+
+    options				= [];
+    optionsTextMap			= {};
+
 
     constructor () {
 	super();
@@ -305,7 +309,7 @@ input {
 	this.__props[ name ]		= newValue;
 
 	if ( name === "value" ) {
-	    this.$selected.innerHTML	= this.name;
+	    this.$selected.innerText	= this.name;
 	}
 	else if ( name === "placeholder" )
 	    this.$input.setAttribute("placeholder", newValue );
@@ -313,53 +317,108 @@ input {
 
 
     // Property/attribute controllers
+    get optionMatch () {
+	return this.visibleOptions.find( $option => {
+	    return $option.getAttribute("value") === this.value;
+	});
+    }
 
     get name () {
-	const index			= this.options.indexOf( this.value );
-	return index >= 0
-	    ? this.optionNames[ index ]
-	    : this.value;
+	if ( this.value === "" )
+	    return this.defaultOption ? this.defaultOption.innerText : "";
+
+	return this.optionMatch ? this.optionMatch.innerText : null;
+    }
+
+    get visibleOptions () {
+	return [].filter.call( this.optionsList, $el => {
+	    return !$el.classList.contains("hide");
+	});
     }
 
 
     // Methods
 
     parseOptions () {
-	if ( this.__parsed === true )
-	    return;
+	// Matched on value and text
+	//
+	//   - If a new option appears with a new value
+	//     - then, create new option
+	//   - If a new option appears with a new text but same value
+	//     - then, create a new option
+	//   - If a new option appears with a new value but same text
+	//     - then, update the existing option's value
+	//   - If an option value disappears
+	//     - then, do nothing
+	//   - If an option text disappears
+	//     - then, remove it from options
+	//
 
-	this.options.splice( 0, this.options.length );
-	this.optionNames.splice( 0, this.optionNames.length );
+	const currentOptionTexts	= new Set( Object.keys( this.optionsTextMap ) );
 
 	for ( let element of this.children ) {
-	    if ( element instanceof HTMLOptionElement ) {
-		const value		= element.value;
-		const text		= element.innerText;
+	    if ( !(element instanceof HTMLOptionElement) )
+		continue;
 
-		this.options.push( value );
+	    const value			= element.value;
+	    const text			= element.innerText.trim();
+
+	    currentOptionTexts.delete( text );
+
+	    if ( text in this.optionsTextMap ) {
+		// Exists
+		continue;
+	    }
+
+	    const $option			= document.createElement("div");
+
+	    this.optionElements.push( $option );
+	    // this.options.push( value );
+
+	    if ( value.trim() !== "" ) {
 		this.optionNames.push( text );
+		this.optionNames.sort();
+	    }
 
-		const $option		= document.createElement("div");
+	    const index				= this.optionNames.indexOf( text );
 
-		$option.setAttribute("value", value );
-		$option.innerHTML	= text;
-
-		if ( this.value === value ) {
-		    $option.classList.add("active");
-		    this.$selected.innerHTML	= text;
-		}
-
-		$option.addEventListener("mousedown", event => {
+	    $option.innerText			= text;
+	    $option.setAttribute("value", value );
+	    $option.addEventListener("mousedown", event => {
+		// Only trigger via left click
+		if ( event.which === 1 )
 		    this.clickOption.call( this, event, value );
-		});
+	    });
 
-		this.optionElements.push( $option );
-		this.$dropdown.appendChild( $option );
+	    this.optionsTextMap[ text ]		= $option;
+
+	    if ( value.trim() === "" ) {
+		this.defaultOption		= $option;
+		this.$dropdown.prepend( $option );
+	    }
+	    else if ( index === 0 ) {
+		if ( this.$default )
+		    this.$default.after( $option );
+		else
+		    this.$dropdown.prepend( $option );
+	    }
+	    else {
+		const $sibling			= this.optionsTextMap[ this.optionNames[ index-1 ] ];
+		$sibling.after( $option );
+	    }
+
+	    // If 'selected' was already set by the attribute before the option was parsed.
+	    if ( this.name === text ) {
+		$option.classList.add("active");
+		this.$selected.innerText	= text;
 	    }
 	}
 
-	if ( this.options.length > 0 )
-	    this.__parsed		= true;
+	for ( let text of currentOptionTexts ) {
+	    this.optionsTextMap[ text ].remove();
+
+	    delete this.optionsTextMap[ text ]
+	}
     }
 
     updateValue ( value ) {
@@ -376,8 +435,8 @@ input {
 	this.dispatchEvent( input );
     }
 
-    selectOption ( index ) {
-	this.updateValue( this.options[index] );
+    selectOption ( $option ) {
+	this.updateValue( $option.getAttribute("value") );
 	this.closeSearch();
     }
 
