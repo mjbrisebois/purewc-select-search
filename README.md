@@ -1,10 +1,69 @@
+[![](https://img.shields.io/npm/v/@purewc/select-search/latest?style=flat-square)](http://npmjs.com/package/@purewc/select-search)
+
+# `<select-search>`
+An alternative select Web Component that implements search filtering.
+
+[![](https://img.shields.io/github/issues-raw/mjbrisebois/purewc-select-search?style=flat-square)](https://github.com/mjbrisebois/purewc-select-search/issues)
+[![](https://img.shields.io/github/issues-closed-raw/mjbrisebois/purewc-select-search?style=flat-square)](https://github.com/mjbrisebois/purewc-select-search/issues?q=is%3Aissue+is%3Aclosed)
+[![](https://img.shields.io/github/issues-pr-raw/mjbrisebois/purewc-select-search?style=flat-square)](https://github.com/mjbrisebois/purewc-select-search/pulls)
 
 
-## Web Component - Causation Model
+## Overview
 
-[![](https://mermaid.ink/img/pako:eNplkU9rhDAQxb_KkFMLa0GPHgqLCl5KD9aT8TCrs6s0RomxZcn63TvR_oHu7TG_N5k3EyeasSURi4vBqYO3VGqp86obZwukaCBta6mLau6wHT8hfX2pvSMJH6pG4TzDZMaJjL3CTLZ-ZBLdkctOcu4xhOquJY_-g-8OqTPnsg_OsK5Sl86VU4uWfApfODqH1pr-tFhKOtQXahNU6oTNu8f8MATBMxzZuYk89CE2WXpcbjKJfOjdEP2VC94agqcAMk6xG0O_t5c3Dg6_o2-Q_4BthDiIgcyAfctndVIDSGE7PqUUMcuWzrgoK4XUK1txsWNx1Y2IrVnoIJZtxbRH_pBBxGdUM61fy9-NzA?type=png)](https://mermaid-js.github.io/mermaid-live-editor/edit#pako:eNplkU9rhDAQxb_KkFMLa0GPHgqLCl5KD9aT8TCrs6s0RomxZcn63TvR_oHu7TG_N5k3EyeasSURi4vBqYO3VGqp86obZwukaCBta6mLau6wHT8hfX2pvSMJH6pG4TzDZMaJjL3CTLZ-ZBLdkctOcu4xhOquJY_-g-8OqTPnsg_OsK5Sl86VU4uWfApfODqH1pr-tFhKOtQXahNU6oTNu8f8MATBMxzZuYk89CE2WXpcbjKJfOjdEP2VC94agqcAMk6xG0O_t5c3Dg6_o2-Q_4BthDiIgcyAfctndVIDSGE7PqUUMcuWzrgoK4XUK1txsWNx1Y2IrVnoIJZtxbRH_pBBxGdUM61fy9-NzA)
+
+## Usage
+
+Install
+
+```bash
+npm i @purewc/select-search
+```
+
+Import and register as a custom element
+
+```js
+import { HTMLSelectSearchElement } from '@purewc/select-search';
+
+customElements.define("select-search", HTMLSelectSearchElement );
+```
+
+HTML example
+
+```html
+<select-search value="angola">
+    <option value="">Select a Country</option>
+    <option value="afghanistan">Afghanistan</option>
+    <option value="albania">Albania</option>
+    ...
+    <option value="zambia">Zambia</option>
+    <option value="zimbabwe">Zimbabwe</option>
+</select-search>
+```
+
+
+### Non-module Usage
+
+Clone the project and run the webpack script.
+
+```bash
+npx webpack
+```
+
+Include the compiled output as a script.
+
+```html
+<script src="dist/purewc-select-search.auto.js"></script>
+```
+
+This will automatically register the element class as `select-search`.
+
 
 
 ## Demo
 
-[https://mjbrisebois.github.io/wc-select-search/docs/](https://mjbrisebois.github.io/wc-select-search/docs/)
+[https://mjbrisebois.github.io/purewc-select-search/docs/](https://mjbrisebois.github.io/purewc-select-search/docs/)
+
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md)

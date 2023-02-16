@@ -1,11 +1,25 @@
 {
-  "name": "@whi/wc-select-search",
+  "name": "@purewc/select-search",
   "version": "0.1.0",
-  "description": "A alternative select Web Component that implements search filtering",
+  "description": "An alternative select Web Component that implements search filtering",
   "main": "src/index.js",
+  "type": "module",
+  "files": [
+    "README.md",
+    "src/index.js",
+    "dist/*.js",
+    "dist/*.map"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Matthew Brisebois",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.1"
+  },
+  "dependencies": {
+    "@purewc/template": "^0.1.0"
+  }
 }

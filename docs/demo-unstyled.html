@@ -14,7 +14,11 @@
 	  }
 	</style>
 
-	<script src="../src/index.js"></script>
+	<script type="module">
+	  import { HTMLSelectSearchElement } from '../dist/purewc-select-search.js';
+
+	  customElements.define("select-search", HTMLSelectSearchElement );
+	</script>
     </head>
     <body>
 	<select-search placeholder="Filter countries...">
