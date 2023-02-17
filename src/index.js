@@ -1,7 +1,32 @@
-import HTMLElementTemplate from '@purewc/template';
 
-export class HTMLSelectSearchElement extends HTMLElementTemplate {
-    static CSS				= `
+export class HTMLSelectSearchElement extends LitElement {
+    static get properties () {
+	return {
+	    "options": {
+		"type": Array,
+		"reflect": false,
+	    },
+	    "value": {
+		"type": String,
+		"reflect": true,
+	    },
+	    "placeholder": {
+		"type": String,
+		"reflect": true,
+	    },
+	    "search": {
+		"type": String,
+		"reflect": true,
+	    },
+	    "searching": {
+		"type": Boolean,
+		"reflect": false,
+	    },
+	};
+    }
+
+    static styles = [
+	css`
 :host {
   display: inline-block;
   position: relative;
@@ -14,16 +39,16 @@ export class HTMLSelectSearchElement extends HTMLElementTemplate {
   background-position: 100% 50%;
 }
 
-.hide {
-  display: none;
-}
-
 input {
   font-size: 1rem;
   font-family: inherit;
   line-height: inherit;
   border: none;
   outline: none;
+}
+
+.d-block {
+  display: block;
 }
 
 #display {
@@ -87,248 +112,133 @@ input {
   padding: .1em .4em;
   white-space: no-wrap;
 }
-.dropdown div.active {
-  font-weight: 800;
-}
 .dropdown div.active,
 .dropdown div:hover {
   background-color: #eee;
 }
-`;
-
-    static template			= `
-<div id="display">
-    <span></span>
-    <input name="search">
-    </input>
-</div>
-<div id="options">
-    <div class="dropdown">
-    </div>
-</div>
-`;
+`,
+    ];
 
 
     // Element constants
 
-    static observedAttributes		= [
-	"options",
-	"value",
-	"placeholder",
-	"search",
-	"searching",
-    ];
-    static properties			= {
-	"value": {
-	    "default": "",
-	    updateDOM ( before, changed ) {
-		const change = new Event('change');
-		this.dispatchEvent( change );
-
-		const input = new InputEvent('input');
-		this.dispatchEvent( input );
-
-		this.$selected.innerText	= this.name || this.value;
-		const $el			= this.optionMatch;
-
-		if ( this.$active )
-		    this.$active.classList.remove("active");
-
-		if ( $el )
-		    $el.classList.add("active");
-	    },
-	},
-	"search": {
-	    "default": "",
-	    updateDOM () {
-		const search			= this.search.trim().toLowerCase();
-		this.$input.setAttribute( "value", search );
-
-		this.optionElements.forEach( ($option) => {
-		    const value			= $option.getAttribute("value").toLowerCase();
-		    const name			= $option.innerText.toLowerCase();
-
-		    if ( value.includes( search ) || name.includes( search ) )
-			$option.classList.remove("hide");
-		    else
-			$option.classList.add("hide");
-		});
-	    },
-	},
-	"searching": {
-	    "default": false,
-	    "reflect": false,
-	    updateDOM () {
-		if ( this.searching ) {
-		    this.$display.classList.add("searching");
-		    this.$options.classList.add("searching");
-
-		    this.$input.select();
-		} else {
-		    this.$display.classList.remove("searching");
-		    this.$options.classList.remove("searching");
-		}
-	    },
-	},
-
-	// "options",
-	"placeholder": {
-	    updateDOM () {
-		if ( this.placeholder === undefined )
-		    this.$input.removeAttribute("placeholder");
-		else
-		    this.$input.setAttribute("placeholder", this.placeholder );
-	    },
-	},
-    };
-
-    static refs				= {
-	"$input":		`input`,
-	"$display":		`#display`,
-	"$selected":		`#display span`,
-
-	"$options":		`#options`,
-	"$active":		`#options .active`,
-	"$default":		`#options div[value=""]`,
-	"$dropdown":		`#options .dropdown`,
-
-	"optionsList":		`#options div[value]`,
-    };
-
-
-    optionNames				= [];
-    optionElements			= [];
-
+    inputRef				= createRef();
     options				= [];
-    optionsTextMap			= {};
-
+    optionNames				= [];
+    visibleOptions			= [];
 
     constructor () {
 	super();
 
-	this.addEventListener("click", event => this.$input.focus() );
+	const $this			= this;
+	this.value			= "";
+	this.search			= "";
+	this.searching			= false;
 
-	this.$input.addEventListener("blur", this.inputBlur.bind(this) );
-	this.$input.addEventListener("focus", this.inputFocus.bind(this) );
-	this.$input.addEventListener("keyup", this.inputKeyUpHandler.bind(this) );
-	this.$input.addEventListener("keydown", this.inputKeyDownHandler.bind(this) );
-	this.$input.addEventListener("input", event => {
-	    event.stopPropagation();
+	const observer			= new MutationObserver(function(mutationsList, observer) {
+	    $this.parseOptions();
 	});
-    }
+	observer.observe( this, {
+	    "characterData": false,
+	    "childList": true,
+	    "attributes": false,
+	});
 
-    connectedCallback() {
-	this.parseOptions();
-    }
+	$this.parseOptions();
 
-    mutationCallback() {
-	this.parseOptions();
+	this.addEventListener("click", this.openSearch );
     }
 
 
     // Property/attribute controllers
 
-    get optionMatch () {
-	return this.visibleOptions.find( $option => {
-	    return $option.getAttribute("value") === this.value;
-	});
-    }
-
     get name () {
-	if ( this.value === "" )
-	    return this.defaultOption ? this.defaultOption.innerText : "";
-
-	return this.optionMatch ? this.optionMatch.innerText : null;
+	return this.optionNames[ this.options.indexOf( this.value ) ];
     }
 
-    get visibleOptions () {
-	return [].filter.call( this.optionsList, $el => {
-	    return !$el.classList.contains("hide");
+    set value ( text ) {
+	this.__value		= text.trim();
+
+	this.requestUpdate();
+    }
+    get value () {
+	return this.__value;
+    }
+
+    set search ( value ) {
+	if ( typeof value !== "string" )
+	    throw new TypeError(`search value must be a string; not type of '${typeof value}'`);
+
+	this.__search			= value.trim().toLowerCase();
+
+	this.visibleOptions.splice( 0, this.visibleOptions.length );
+
+	this.options.forEach( (value, i) => {
+	    if ( value.toLowerCase().includes( this.__search ) )
+		this.visibleOptions.push( i );
 	});
+
+	this.requestUpdate();
+    }
+    get search () {
+	return this.__search;
+    }
+
+    set searching ( value ) {
+	this.__searching		= !!value;
+
+	if ( this.__searching === true )
+	    this.focusSearch		= true;
+
+	this.requestUpdate();
+    }
+    get searching () {
+	return this.__searching;
+    }
+
+
+    // Lifecycle hooks
+
+    updated () {
+	if ( this.focusSearch === true ) {
+	    this.inputRef.value.select();
+	    this.focusSearch		= false;
+	}
     }
 
 
     // Methods
 
     parseOptions () {
-	// Matched on value and text
-	//
-	//   - If a new option appears with a new value
-	//     - then, create new option
-	//   - If a new option appears with a new text but same value
-	//     - then, create a new option
-	//   - If a new option appears with a new value but same text
-	//     - then, update the existing option's value
-	//   - If an option value disappears
-	//     - then, do nothing
-	//   - If an option text disappears
-	//     - then, remove it from options
-	//
-
-	const currentOptionTexts	= new Set( Object.keys( this.optionsTextMap ) );
+	this.options.splice( 0, this.options.length );
+	this.optionNames.splice( 0, this.optionNames.length );
 
 	for ( let element of this.children ) {
-	    if ( !(element instanceof HTMLOptionElement) )
-		continue;
-
-	    const value			= element.value;
-	    const text			= element.innerText.trim();
-
-	    currentOptionTexts.delete( text );
-
-	    if ( text in this.optionsTextMap ) {
-		// Exists
-		continue;
-	    }
-
-	    const $option			= document.createElement("div");
-
-	    this.optionElements.push( $option );
-
-	    if ( value.trim() !== "" ) {
-		this.optionNames.push( text );
-		this.optionNames.sort();
-	    }
-
-	    const index				= this.optionNames.indexOf( text );
-
-	    $option.innerText			= text;
-	    $option.setAttribute("value", value );
-	    $option.addEventListener("mousedown", event => {
-		// Only trigger via left click
-		if ( event.which === 1 )
-		    this.clickOption.call( this, event, value );
-	    });
-
-	    this.optionsTextMap[ text ]		= $option;
-
-	    if ( value.trim() === "" ) {
-		this.defaultOption		= $option;
-		this.$dropdown.prepend( $option );
-	    }
-	    else if ( index === 0 ) {
-		if ( this.$default )
-		    this.$default.after( $option );
-		else
-		    this.$dropdown.prepend( $option );
-	    }
-	    else {
-		const $sibling			= this.optionsTextMap[ this.optionNames[ index-1 ] ];
-		$sibling.after( $option );
-	    }
-
-	    // If 'selected' was already set by the attribute before the option was parsed.
-	    if ( this.name === text ) {
-		$option.classList.add("active");
-		this.$selected.innerText	= text;
+	    if ( element instanceof HTMLOptionElement ) {
+		this.options.push( element.value );
+		this.optionNames.push( element.innerText );
 	    }
 	}
 
-	for ( let text of currentOptionTexts ) {
-	    this.optionsTextMap[ text ].remove();
+	this.search			= "";
 
-	    delete this.optionsTextMap[ text ]
-	}
+	this.requestUpdate();
+    }
+
+    updateValue ( value ) {
+	this.value			= value;
+	this.setAttribute("value", this.value );
+
+	const change = new Event('change');
+	this.dispatchEvent( change );
+
+	const input = new InputEvent('input');
+	this.dispatchEvent( input );
+    }
+
+    selectOption ( index ) {
+	this.updateValue( this.options[index] );
+	this.closeSearch();
     }
 
     openSearch () {
@@ -342,34 +252,24 @@ input {
 
     // Event handlers
 
-    inputKeyDownHandler ( event ) {
-	if ( event.code === "Tab"
-	     && this.search
-	     && this.visibleOptions[0] )
-	    this.value		= this.visibleOptions[0].getAttribute("value");
-    }
-
     inputKeyUpHandler ( event ) {
-	if ( event.code === "Enter" ) {
-	    this.value			= this.visibleOptions[0]
-		? this.visibleOptions[0].getAttribute("value")
-		: event.target.value
-
-	    this.$input.blur();
-	}
+	if ( event.code === "Enter" && this.visibleOptions[0] )
+	    this.selectOption( this.visibleOptions[0] );
 	else if ( event.code === "Escape" )
 	    this.closeSearch();
 
-	if ( this.search !== event.target.value )
-	    this.search			= event.target.value;
-    }
-
-    inputBlur ( event ) {
-	this.closeSearch();
+	this.search			= event.target.value;
+	this.setAttribute("search", this.search );
     }
 
     inputFocus ( event ) {
 	this.openSearch();
+    }
+
+    inputBlur ( event ) {
+	setTimeout(() => {
+	    this.closeSearch();
+	}, 100);
     }
 
     clickOption ( event, value ) {
@@ -380,6 +280,47 @@ input {
 	});
 	this.dispatchEvent( click );
 
-	this.value			= value;
+	this.updateValue( value );
+	this.closeSearch();
+
+	setTimeout(() => {
+	    this.inputRef.value.blur();
+	}, 100 );
+    }
+
+
+    // Rendering
+
+    renderOption ( i ) {
+	const value			= this.options[i];
+	const name			= this.optionNames[i]
+
+	if ( this.value === value )
+	    return html`<div class="active" style="font-weight: 800;" value=${value}>${ name }</div>`;
+	else
+	    return html`<div @click=${event => this.clickOption.call( this, event, value )} value=${value}>${ name }</div>`;
+    }
+
+    render () {
+	const classes			= {
+	    "searching": this.searching,
+	};
+
+	return html`
+<div id="display" class=${classMap(classes)}>
+    <span>${this.name}</span>
+    <input ${ref(this.inputRef)} name="search" value=${this.search}
+           placeholder=${this.placeholder}
+           @keyup=${this.inputKeyUpHandler}
+           @focus=${this.inputFocus}
+           @blur=${this.inputBlur}>
+    </input>
+</div>
+<div id="options" class=${classMap(classes)}>
+    <div class="dropdown">
+        ${this.visibleOptions.map( index => this.renderOption( index ) )}
+    </div>
+</div>
+`;
     }
 }
