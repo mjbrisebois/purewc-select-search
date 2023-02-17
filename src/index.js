@@ -121,17 +121,15 @@ input {
     static properties			= {
 	"value": {
 	    "default": "",
-	    updated () {
+	    updateDOM ( before, changed ) {
 		const change = new Event('change');
 		this.dispatchEvent( change );
 
 		const input = new InputEvent('input');
 		this.dispatchEvent( input );
 
-		this.$selected.innerText	= this.name;
-
-		const index			= this.options.indexOf( this.value );
-		const $el			= this.optionElements[ index ];
+		this.$selected.innerText	= this.name || this.value;
+		const $el			= this.optionMatch;
 
 		if ( this.$active )
 		    this.$active.classList.remove("active");
@@ -142,7 +140,7 @@ input {
 	},
 	"search": {
 	    "default": "",
-	    updated () {
+	    updateDOM () {
 		const search			= this.search.trim().toLowerCase();
 		this.$input.setAttribute( "value", search );
 
@@ -160,7 +158,7 @@ input {
 	"searching": {
 	    "default": false,
 	    "reflect": false,
-	    updated () {
+	    updateDOM () {
 		if ( this.searching ) {
 		    this.$display.classList.add("searching");
 		    this.$options.classList.add("searching");
@@ -175,9 +173,8 @@ input {
 
 	// "options",
 	"placeholder": {
-	    "default": "",
-	    updated () {
-		if ( this.placeholder === null || this.placeholder === undefined )
+	    updateDOM () {
+		if ( this.placeholder === undefined )
 		    this.$input.removeAttribute("placeholder");
 		else
 		    this.$input.setAttribute("placeholder", this.placeholder );
@@ -214,6 +211,10 @@ input {
 	this.$input.addEventListener("blur", this.inputBlur.bind(this) );
 	this.$input.addEventListener("focus", this.inputFocus.bind(this) );
 	this.$input.addEventListener("keyup", this.inputKeyUpHandler.bind(this) );
+	this.$input.addEventListener("keydown", this.inputKeyDownHandler.bind(this) );
+	this.$input.addEventListener("input", event => {
+	    event.stopPropagation();
+	});
     }
 
     connectedCallback() {
@@ -224,18 +225,9 @@ input {
 	this.parseOptions();
     }
 
-    attributeChangedCallback( name, oldValue, newValue ) {
-	this.__props[ name ]		= newValue;
-
-	if ( name === "value" ) {
-	    this.$selected.innerText	= this.name;
-	}
-	else if ( name === "placeholder" )
-	    this.$input.setAttribute("placeholder", newValue );
-    }
-
 
     // Property/attribute controllers
+
     get optionMatch () {
 	return this.visibleOptions.find( $option => {
 	    return $option.getAttribute("value") === this.value;
@@ -292,7 +284,6 @@ input {
 	    const $option			= document.createElement("div");
 
 	    this.optionElements.push( $option );
-	    // this.options.push( value );
 
 	    if ( value.trim() !== "" ) {
 		this.optionNames.push( text );
@@ -340,25 +331,6 @@ input {
 	}
     }
 
-    updateValue ( value ) {
-	const current			= this.value;
-	this.value			= value;
-
-	if ( current === this.value )
-	    return;
-
-	const change = new Event('change');
-	this.dispatchEvent( change );
-
-	const input = new InputEvent('input');
-	this.dispatchEvent( input );
-    }
-
-    selectOption ( $option ) {
-	this.updateValue( $option.getAttribute("value") );
-	this.closeSearch();
-    }
-
     openSearch () {
 	this.searching			= true;
     }
@@ -370,9 +342,21 @@ input {
 
     // Event handlers
 
+    inputKeyDownHandler ( event ) {
+	if ( event.code === "Tab"
+	     && this.search
+	     && this.visibleOptions[0] )
+	    this.value		= this.visibleOptions[0].getAttribute("value");
+    }
+
     inputKeyUpHandler ( event ) {
-	if ( event.code === "Enter" && this.visibleOptions[0] !== undefined )
-	    this.selectOption( this.visibleOptions[0] );
+	if ( event.code === "Enter" ) {
+	    this.value			= this.visibleOptions[0]
+		? this.visibleOptions[0].getAttribute("value")
+		: event.target.value
+
+	    this.$input.blur();
+	}
 	else if ( event.code === "Escape" )
 	    this.closeSearch();
 
@@ -396,6 +380,6 @@ input {
 	});
 	this.dispatchEvent( click );
 
-	this.updateValue( value );
+	this.value			= value;
     }
 }

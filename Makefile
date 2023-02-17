@@ -9,6 +9,13 @@ node_modules:		package-lock.json
 	touch $@
 build:			node_modules
 
+use-local-template:
+	npm uninstall @purewc/template
+	npm install ../purewc-template
+use-npm-template:
+	npm uninstall @purewc/template
+	npm install --save @purewc/template
+
 
 #
 # Testing

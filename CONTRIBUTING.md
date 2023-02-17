@@ -12,8 +12,6 @@ Extends [`HTMLElementTemplate`](https://github.com/mjbrisebois/purewc-template)
 ### Planned Features
 
 - Support multi-select
-- Allow a custom value outside of the given options
-- "Tab" after search should select top value like "Enter"
 - Required
 - Disabled
 - Use `selected` attribute for options to match native select
