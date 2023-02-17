@@ -1,6 +1,6 @@
 {
   "name": "@purewc/select-search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An alternative select Web Component that implements search filtering",
   "main": "src/index.js",
   "type": "module",
